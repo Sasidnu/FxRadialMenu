@@ -182,6 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 'Lock': { icon: 'fas fa-lock', event: 'vehicleLock', 'data-action': 'vehicleLock', children: null },
                 'Unlock': { icon: 'fas fa-lock-open', event: 'vehicleUnlock', 'data-action': 'vehicleUnlock', children: null }
               }
+            },
+            'Keys': {
+              icon: 'fas fa-key',
+              children: {
+                'Give Keys': { icon: 'fas fa-key', event: 'vehicleGiveKeys', 'data-action': 'vehicleGiveKeys', children: null }
+              }
             }
           }
         }
@@ -282,18 +288,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 eventData.locationType = item.locationType;
             }
             
-            // Send action to Lua
+            // Send action to Lua with proper data structure
             $.post(`https://${GetParentResourceName()}/performAction`, JSON.stringify(eventData))
                 .done(() => {
-                    // CRITICAL: Request immediate state update after action
-                    setTimeout(() => {
-                        if (item.event.includes('vehicle')) {
-                            $.post(`https://${GetParentResourceName()}/requestStates`, JSON.stringify({}));
-                        }
-                        if (item.event.includes('Clothing')) {
+                    // Force clothing state refresh
+                    if (item.event && item.event.includes('Clothing')) {
+                        setTimeout(() => {
                             $.post(`https://${GetParentResourceName()}/requestClothingUpdate`, JSON.stringify({}));
-                        }
-                    }, 100);
+                        }, 200); // Give more time for clothing change
+                    }
                 });
         }
     }

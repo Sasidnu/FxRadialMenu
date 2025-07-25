@@ -331,6 +331,7 @@ body, html {
   background: linear-gradient(145deg, #FFD700, #DAA520);
   box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.5), 0 2px 5px rgba(0, 0, 0, 0.3);
   border-color: #FFFACD;
+  filter: none !important; /* Remove blur */
 }
 
 .hexagon.active-gold .icon,

@@ -91,39 +91,4 @@ Config.JobMenus = {
     }
 }
 
--- Add clothing buttons to the main radial menu
-Config.MenuItems = {
-    {
-        id = 'Mask',
-        title = 'Mask',
-        icon = 'mask',
-        type = 'client',
-        event = 'qb-radialmenu:ToggleClothing',
-        shouldClose = true,
-        -- You can add extra params if needed
-    },
-    {
-        id = 'Hat',
-        title = 'Hat',
-        icon = 'hat-cowboy',
-        type = 'client',
-        event = 'qb-radialmenu:ToggleProps',
-        shouldClose = true,
-    },
-    {
-        id = 'Bag',
-        title = 'Bag',
-        icon = 'shopping-bag',
-        type = 'client',
-        event = 'qb-radialmenu:ToggleClothing',
-        shouldClose = true,
-    },
-    {
-        id = 'Glasses',
-        title = 'Glasses',
-        icon = 'glasses',
-        type = 'client',
-        event = 'qb-radialmenu:ToggleProps',
-        shouldClose = true,
-    },
-}
+-- Remove the MenuItems section from config since it's already in JavaScript

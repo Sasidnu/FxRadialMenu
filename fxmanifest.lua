@@ -14,6 +14,7 @@ files {
 shared_script 'config.lua'
 
 client_scripts {
-    'client/client.lua'
+    'client/client.lua',
+    'client/clothing.lua' -- clothing.lua integrate කරන්න
 }
-server_script 'server/server.lua'
+-- Remove trunk.lua and stretcher.lua references

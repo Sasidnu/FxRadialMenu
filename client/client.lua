@@ -1,4 +1,14 @@
 local QBCore = exports['qb-core']:GetCoreObject()
+
+-- Trigger the clothing events from the old system
+RegisterNetEvent('qb-radialmenu:ToggleClothing', function(data)
+    TriggerEvent('FxRadialMenu:ToggleClothing', {id = data.id})
+end)
+
+RegisterNetEvent('qb-radialmenu:ToggleProps', function(data)
+    TriggerEvent('FxRadialMenu:ToggleClothing', {id = data.id})
+end)
+
 local isPlacingObject = false
 local placedObjects = {}
 local isEscorting = false
@@ -162,7 +172,7 @@ local function PlayToggleEmote(emote, cb)
     if cb then cb() end
 end
 
-local function toggleClothingItem(item)
+function ToggleClothingItem(item)
     local playerPed = PlayerPedId()
     if not clothingState[item] or not initialClothing[item] then return end
 
@@ -284,82 +294,96 @@ end
 
 -- Enhanced Engine Control Function
 local function ToggleEngine(vehicle, turnOn)
-    if not DoesEntityExist(vehicle) then
-        QBCore.Functions.Notify('No vehicle found!', 'error')
-        return
-    end
-
-    local plate = QBCore.Functions.GetPlate(vehicle)
-    if not exports['qb-vehiclekeys']:HasKeys(plate) then
-        QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
-        return
-    end
-
-    local playerPed = PlayerPedId()
-    local isInVehicle = IsPedInAnyVehicle(playerPed, false)
-    
-    -- Server log
-    TriggerServerEvent('fxradialmenu:server:engineAttempt', isInVehicle)
-    
-    if turnOn then
-        if not GetIsVehicleEngineRunning(vehicle) then
-            -- Multiple attempts to ensure engine starts
-            SetVehicleEngineOn(vehicle, true, false, true)
-            SetVehicleUndriveable(vehicle, false)
-            
-            -- For remote start, try additional methods
-            if not isInVehicle then
-                -- Method 1: Direct engine start
-                SetVehicleEngineOn(vehicle, true, false, true)
-                Wait(50)
-                
-                -- Method 2: Try again with different parameters
-                SetVehicleEngineOn(vehicle, true, true, false)
-                Wait(50)
-                
-                -- Method 3: Ensure it's not broken
-                SetVehicleFixed(vehicle)
-                SetVehicleDeformationFixed(vehicle)
-                SetVehicleEngineHealth(vehicle, 1000.0)
-                Wait(50)
-                
-                -- Final attempt
-                SetVehicleEngineOn(vehicle, true, false, true)
-            end
-            
-            -- Verify if engine actually started
-            Wait(200)
-            if GetIsVehicleEngineRunning(vehicle) then
-                QBCore.Functions.Notify('Engine started!', 'success')
-            else
-                QBCore.Functions.Notify('Failed to start engine remotely. Try getting closer.', 'error')
-            end
-        else
-            QBCore.Functions.Notify('Engine is already running!', 'error')
+    local success, error = pcall(function()
+        if not DoesEntityExist(vehicle) then
+            QBCore.Functions.Notify('No vehicle found!', 'error')
+            return
         end
-    else
-        -- Engine off logic
-        if GetIsVehicleEngineRunning(vehicle) then
-            SetVehicleEngineOn(vehicle, false, false, true)
+
+        -- Add network control request
+        NetworkRequestControlOfEntity(vehicle)
+        local timeout = 0
+        while not NetworkHasControlOfEntity(vehicle) and timeout < 1000 do
             Wait(100)
-            -- Double check to ensure it turned off
+            timeout = timeout + 100
+        end
+
+        local plate = QBCore.Functions.GetPlate(vehicle)
+        if not exports['qb-vehiclekeys']:HasKeys(plate) then
+            QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+            return
+        end
+
+        local playerPed = PlayerPedId()
+        local isInVehicle = IsPedInAnyVehicle(playerPed, false)
+        
+        -- Server log
+        TriggerServerEvent('fxradialmenu:server:engineAttempt', isInVehicle)
+        
+        if turnOn then
             if not GetIsVehicleEngineRunning(vehicle) then
-                QBCore.Functions.Notify('Engine turned off!', 'success')
+                -- Multiple attempts to ensure engine starts
+                SetVehicleEngineOn(vehicle, true, false, true)
+                SetVehicleUndriveable(vehicle, false)
+                
+                -- For remote start, try additional methods
+                if not isInVehicle then
+                    -- Method 1: Direct engine start
+                    SetVehicleEngineOn(vehicle, true, false, true)
+                    Wait(50)
+                    
+                    -- Method 2: Try again with different parameters
+                    SetVehicleEngineOn(vehicle, true, true, false)
+                    Wait(50)
+                    
+                    -- Method 3: Ensure it's not broken
+                    SetVehicleFixed(vehicle)
+                    SetVehicleDeformationFixed(vehicle)
+                    SetVehicleEngineHealth(vehicle, 1000.0)
+                    Wait(50)
+                    
+                    -- Final attempt
+                    SetVehicleEngineOn(vehicle, true, false, true)
+                end
+                
+                -- Verify if engine actually started
+                Wait(200)
+                if GetIsVehicleEngineRunning(vehicle) then
+                    QBCore.Functions.Notify('Engine started!', 'success')
+                else
+                    QBCore.Functions.Notify('Failed to start engine remotely. Try getting closer.', 'error')
+                end
             else
-                SetVehicleEngineOn(vehicle, false, true, true)
-                QBCore.Functions.Notify('Engine turned off!', 'success')
+                QBCore.Functions.Notify('Engine is already running!', 'error')
             end
         else
-            QBCore.Functions.Notify('Engine is already off!', 'error')
+            -- Engine off logic
+            if GetIsVehicleEngineRunning(vehicle) then
+                SetVehicleEngineOn(vehicle, false, false, true)
+                Wait(100)
+                -- Double check to ensure it turned off
+                if not GetIsVehicleEngineRunning(vehicle) then
+                    QBCore.Functions.Notify('Engine turned off!', 'success')
+                else
+                    SetVehicleEngineOn(vehicle, false, true, true)
+                    QBCore.Functions.Notify('Engine turned off!', 'success')
+                end
+            else
+                QBCore.Functions.Notify('Engine is already off!', 'error')
+            end
         end
-    end
+        
+        -- Update vehicle states after engine change
+        Wait(200)
+        UpdateAndSendAllStates()
+        -- IMMEDIATE UPDATE: Send vehicle states after engine change
+        Wait(100)
+        UpdateAndSendAllStates()
+    end)
     
-    -- Update vehicle states after engine change
-    Wait(200)
-    UpdateAndSendAllStates()
-    -- IMMEDIATE UPDATE: Send vehicle states after engine change
-    Wait(100)
-    UpdateAndSendAllStates()
+    if not success then
+        QBCore.Functions.Notify('Engine operation failed: ' .. tostring(error), 'error')
+    end
 end
 
 -- Vehicle State Update Function
@@ -550,9 +574,18 @@ RegisterNUICallback('performAction', function(data, cb)
     if action == 'FxRadialMenu:ToggleClothing' then
         local itemId = eventData.id
         if itemId then
-            toggleClothingItem(itemId)
+            ToggleClothingItem(itemId)  -- Now can call directly
+        end
+        cb('ok')
+        return
+    end
+
+    if action == 'qb-radialmenu:ToggleProps' then
+        local itemId = eventData.id
+        if itemId then
+            ToggleClothingItem(itemId)  -- Now can call directly
         else
-            print("FxRadialMenu Error: Clothing event received, but item ID was missing.")
+            print("qb-radialmenu Error: Props event received, but item ID was missing.")
         end
         cb('ok')
         return
@@ -594,42 +627,54 @@ RegisterNUICallback('performAction', function(data, cb)
 
     -- Vehicle light actions
     if action == 'vehicleLightOn' then
-        local vehicle = GetControlVehicle()
-        if vehicle and DoesEntityExist(vehicle) then
-            local plate = QBCore.Functions.GetPlate(vehicle)
-            if exports['qb-vehiclekeys']:HasKeys(plate) then
-                SetVehicleLights(vehicle, 2) -- Force lights on
-                lightStates[plate] = true
-                QBCore.Functions.Notify('Lights turned on!', 'success')
-                -- IMMEDIATE UPDATE
-                Wait(50)
-                UpdateAndSendAllStates()
+        local success, error = pcall(function()
+            local vehicle = GetControlVehicle()
+            if vehicle and DoesEntityExist(vehicle) then
+                local plate = QBCore.Functions.GetPlate(vehicle)
+                if exports['qb-vehiclekeys']:HasKeys(plate) then
+                    SetVehicleLights(vehicle, 2) -- Force lights on
+                    lightStates[plate] = true
+                    QBCore.Functions.Notify('Lights turned on!', 'success')
+                    -- IMMEDIATE UPDATE
+                    Wait(50)
+                    UpdateAndSendAllStates()
+                else
+                    QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                end
             else
-                QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                QBCore.Functions.Notify('No vehicle nearby!', 'error')
             end
-        else
-            QBCore.Functions.Notify('No vehicle nearby!', 'error')
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Light operation failed: ' .. tostring(error), 'error')
         end
         cb('ok')
         return
         
     elseif action == 'vehicleLightOff' then
-        local vehicle = GetControlVehicle()
-        if vehicle and DoesEntityExist(vehicle) then
-            local plate = QBCore.Functions.GetPlate(vehicle)
-            if exports['qb-vehiclekeys']:HasKeys(plate) then
-                SetVehicleLights(vehicle, 1) -- This allows normal H key function
-                SetVehicleLights(vehicle, 0) -- Then turn completely off
-                lightStates[plate] = false
-                QBCore.Functions.Notify('Lights turned off!', 'success')
-                -- IMMEDIATE UPDATE
-                Wait(50)
-                UpdateAndSendAllStates()
+        local success, error = pcall(function()
+            local vehicle = GetControlVehicle()
+            if vehicle and DoesEntityExist(vehicle) then
+                local plate = QBCore.Functions.GetPlate(vehicle)
+                if exports['qb-vehiclekeys']:HasKeys(plate) then
+                    SetVehicleLights(vehicle, 1) -- This allows normal H key function
+                    SetVehicleLights(vehicle, 0) -- Then turn completely off
+                    lightStates[plate] = false
+                    QBCore.Functions.Notify('Lights turned off!', 'success')
+                    -- IMMEDIATE UPDATE
+                    Wait(50)
+                    UpdateAndSendAllStates()
+                else
+                    QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                end
             else
-                QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                QBCore.Functions.Notify('No vehicle nearby!', 'error')
             end
-        else
-            QBCore.Functions.Notify('No vehicle nearby!', 'error')
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Light operation failed: ' .. tostring(error), 'error')
         end
         cb('ok')
         return
@@ -646,28 +691,34 @@ RegisterNUICallback('performAction', function(data, cb)
     }
     
     if doorActions[action] then
-        local vehicle = GetControlVehicle()
-        if vehicle and DoesEntityExist(vehicle) then
-            local plate = QBCore.Functions.GetPlate(vehicle)
-            if exports['qb-vehiclekeys']:HasKeys(plate) then
-                local doorIndex = doorActions[action]
-                local isOpen = GetVehicleDoorAngleRatio(vehicle, doorIndex) > 0.0
-                
-                if isOpen then
-                    SetVehicleDoorShut(vehicle, doorIndex, false)
-                    QBCore.Functions.Notify('Door closed!', 'success')
+        local success, error = pcall(function()
+            local vehicle = GetControlVehicle()
+            if vehicle and DoesEntityExist(vehicle) then
+                local plate = QBCore.Functions.GetPlate(vehicle)
+                if exports['qb-vehiclekeys']:HasKeys(plate) then
+                    local doorIndex = doorActions[action]
+                    local isOpen = GetVehicleDoorAngleRatio(vehicle, doorIndex) > 0.0
+                    
+                    if isOpen then
+                        SetVehicleDoorShut(vehicle, doorIndex, false)
+                        QBCore.Functions.Notify('Door closed!', 'success')
+                    else
+                        SetVehicleDoorOpen(vehicle, doorIndex, false, false)
+                        QBCore.Functions.Notify('Door opened!', 'success')
+                    end
+                    -- IMMEDIATE UPDATE
+                    Wait(50)
+                    UpdateAndSendAllStates()
                 else
-                    SetVehicleDoorOpen(vehicle, doorIndex, false, false)
-                    QBCore.Functions.Notify('Door opened!', 'success')
+                    QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
                 end
-                -- IMMEDIATE UPDATE
-                Wait(50)
-                UpdateAndSendAllStates()
             else
-                QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                QBCore.Functions.Notify('No vehicle nearby!', 'error')
             end
-        else
-            QBCore.Functions.Notify('No vehicle nearby!', 'error')
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Door operation failed: ' .. tostring(error), 'error')
         end
         cb('ok')
         return
@@ -682,36 +733,42 @@ RegisterNUICallback('performAction', function(data, cb)
     }
     
     if windowActions[action] then
-        local vehicle = GetControlVehicle()
-        if vehicle and DoesEntityExist(vehicle) then
-            local plate = QBCore.Functions.GetPlate(vehicle)
-            if exports['qb-vehiclekeys']:HasKeys(plate) then
-                local windowIndex = windowActions[action]
-                
-                -- Initialize window states for this vehicle if not exists
-                if not windowStates[plate] then
-                    windowStates[plate] = {}
-                end
-                
-                local currentState = windowStates[plate][windowIndex] or "up"
-                
-                if currentState == "up" then
-                    RollDownWindow(vehicle, windowIndex)
-                    windowStates[plate][windowIndex] = "down"
-                    QBCore.Functions.Notify('Window rolled down!', 'success')
+        local success, error = pcall(function()
+            local vehicle = GetControlVehicle()
+            if vehicle and DoesEntityExist(vehicle) then
+                local plate = QBCore.Functions.GetPlate(vehicle)
+                if exports['qb-vehiclekeys']:HasKeys(plate) then
+                    local windowIndex = windowActions[action]
+                    
+                    -- Initialize window states for this vehicle if not exists
+                    if not windowStates[plate] then
+                        windowStates[plate] = {}
+                    end
+                    
+                    local currentState = windowStates[plate][windowIndex] or "up"
+                    
+                    if currentState == "up" then
+                        RollDownWindow(vehicle, windowIndex)
+                        windowStates[plate][windowIndex] = "down"
+                        QBCore.Functions.Notify('Window rolled down!', 'success')
+                    else
+                        RollUpWindow(vehicle, windowIndex)
+                        windowStates[plate][windowIndex] = "up"
+                        QBCore.Functions.Notify('Window rolled up!', 'success')
+                    end
+                    -- IMMEDIATE UPDATE
+                    Wait(50)
+                    UpdateAndSendAllStates()
                 else
-                    RollUpWindow(vehicle, windowIndex)
-                    windowStates[plate][windowIndex] = "up"
-                    QBCore.Functions.Notify('Window rolled up!', 'success')
+                    QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
                 end
-                -- IMMEDIATE UPDATE
-                Wait(50)
-                UpdateAndSendAllStates()
             else
-                QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                QBCore.Functions.Notify('No vehicle nearby!', 'error')
             end
-        else
-            QBCore.Functions.Notify('No vehicle nearby!', 'error')
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Window operation failed: ' .. tostring(error), 'error')
         end
         cb('ok')
         return
@@ -719,33 +776,76 @@ RegisterNUICallback('performAction', function(data, cb)
 
     -- Vehicle lock actions
     if action == 'vehicleLock' then
-        local vehicle = GetControlVehicle()
-        if vehicle and DoesEntityExist(vehicle) then
-            local plate = QBCore.Functions.GetPlate(vehicle)
-            if exports['qb-vehiclekeys']:HasKeys(plate) then
-                SetVehicleDoorsLocked(vehicle, 2) -- Locked
-                QBCore.Functions.Notify('Vehicle locked!', 'success')
+        local success, error = pcall(function()
+            local vehicle = GetControlVehicle()
+            if vehicle and DoesEntityExist(vehicle) then
+                local plate = QBCore.Functions.GetPlate(vehicle)
+                if exports['qb-vehiclekeys']:HasKeys(plate) then
+                    SetVehicleDoorsLocked(vehicle, 2) -- Locked
+                    QBCore.Functions.Notify('Vehicle locked!', 'success')
+                else
+                    QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                end
             else
-                QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                QBCore.Functions.Notify('No vehicle nearby!', 'error')
             end
-        else
-            QBCore.Functions.Notify('No vehicle nearby!', 'error')
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Lock operation failed: ' .. tostring(error), 'error')
         end
         cb('ok')
         return
         
     elseif action == 'vehicleUnlock' then
-        local vehicle = GetControlVehicle()
-        if vehicle and DoesEntityExist(vehicle) then
-            local plate = QBCore.Functions.GetPlate(vehicle)
-            if exports['qb-vehiclekeys']:HasKeys(plate) then
-                SetVehicleDoorsLocked(vehicle, 1) -- Unlocked
-                QBCore.Functions.Notify('Vehicle unlocked!', 'success')
+        local success, error = pcall(function()
+            local vehicle = GetControlVehicle()
+            if vehicle and DoesEntityExist(vehicle) then
+                local plate = QBCore.Functions.GetPlate(vehicle)
+                if exports['qb-vehiclekeys']:HasKeys(plate) then
+                    SetVehicleDoorsLocked(vehicle, 1) -- Unlocked
+                    QBCore.Functions.Notify('Vehicle unlocked!', 'success')
+                else
+                    QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                end
             else
-                QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                QBCore.Functions.Notify('No vehicle nearby!', 'error')
             end
-        else
-            QBCore.Functions.Notify('No vehicle nearby!', 'error')
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Unlock operation failed: ' .. tostring(error), 'error')
+        end
+        cb('ok')
+        return
+    end
+
+    if action == 'vehicleGiveKeys' then
+        local success, error = pcall(function()
+            local vehicle = GetControlVehicle()
+            if vehicle and DoesEntityExist(vehicle) then
+                local plate = QBCore.Functions.GetPlate(vehicle)
+                if exports['qb-vehiclekeys']:HasKeys(plate) then
+                    local closestPed, distance = GetClosestPed({maxDistance = 3.0, isPlayer = true})
+                    if closestPed then
+                        local serverId = GetServerIdFromPed(closestPed)
+                        if serverId then
+                            TriggerServerEvent('qb-vehiclekeys:server:GiveVehicleKeys', serverId, plate)
+                            QBCore.Functions.Notify('Vehicle keys given!', 'success')
+                        end
+                    else
+                        QBCore.Functions.Notify('No player nearby!', 'error')
+                    end
+                else
+                    QBCore.Functions.Notify('You don\'t have keys to this vehicle!', 'error')
+                end
+            else
+                QBCore.Functions.Notify('No vehicle nearby!', 'error')
+            end
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Give keys operation failed: ' .. tostring(error), 'error')
         end
         cb('ok')
         return
@@ -760,22 +860,28 @@ RegisterNUICallback('performAction', function(data, cb)
     }
     
     if seatActions[action] then
-        local playerPed = PlayerPedId()
-        if IsPedInAnyVehicle(playerPed, false) then
-            local vehicle = GetVehiclePedIsIn(playerPed, false)
-            local targetSeat = seatActions[action]
-            
-            if IsVehicleSeatFree(vehicle, targetSeat) then
-                SetPedIntoVehicle(playerPed, vehicle, targetSeat)
-                QBCore.Functions.Notify('Moved to seat!', 'success')
-                -- IMMEDIATE UPDATE
-                Wait(50)
-                UpdateAndSendAllStates()
+        local success, error = pcall(function()
+            local playerPed = PlayerPedId()
+            if IsPedInAnyVehicle(playerPed, false) then
+                local vehicle = GetVehiclePedIsIn(playerPed, false)
+                local targetSeat = seatActions[action]
+                
+                if IsVehicleSeatFree(vehicle, targetSeat) then
+                    SetPedIntoVehicle(playerPed, vehicle, targetSeat)
+                    QBCore.Functions.Notify('Moved to seat!', 'success')
+                    -- IMMEDIATE UPDATE
+                    Wait(50)
+                    UpdateAndSendAllStates()
+                else
+                    QBCore.Functions.Notify('Seat is occupied!', 'error')
+                end
             else
-                QBCore.Functions.Notify('Seat is occupied!', 'error')
+                QBCore.Functions.Notify('You must be inside a vehicle to change seats!', 'error')
             end
-        else
-            QBCore.Functions.Notify('You must be inside a vehicle to change seats!', 'error')
+        end)
+        
+        if not success then
+            QBCore.Functions.Notify('Seat change operation failed: ' .. tostring(error), 'error')
         end
         cb('ok')
         return
@@ -783,6 +889,12 @@ RegisterNUICallback('performAction', function(data, cb)
 
     -- Player interaction actions
     if action == 'putInVehicle' then
+        -- Put in vehicle animation
+        RequestAnimDict("mp_arresting")
+        while not HasAnimDictLoaded("mp_arresting") do Wait(10) end
+        TaskPlayAnim(PlayerPedId(), "mp_arresting", "a_uncuff", 8.0, -8, -1, 48, 0, false, false, false)
+        Wait(2000)
+        
         local closestPed, distance = GetClosestPed({maxDistance = 3.0, isPlayer = true})
         if closestPed then
             local closestVehicle = GetClosestVehicle()
@@ -814,6 +926,11 @@ RegisterNUICallback('performAction', function(data, cb)
     end
 
     if action == 'giveContactDetails' then
+        -- Give contact details animation
+        RequestAnimDict("mp_common")
+        while not HasAnimDictLoaded("mp_common") do Wait(10) end
+        TaskPlayAnim(PlayerPedId(), "mp_common", "givetake1_a", 8.0, -8, -1, 48, 0, false, false, false)
+        
         local closestPed, distance = GetClosestPed({maxDistance = 3.0, isPlayer = true})
         if closestPed then
             local serverId = GetServerIdFromPed(closestPed)
@@ -969,6 +1086,11 @@ RegisterNUICallback('performAction', function(data, cb)
     end
 
     if action == 'searchPlayer' then
+        -- Search player animation
+        RequestAnimDict("amb@medic@standing@kneel@base")
+        while not HasAnimDictLoaded("amb@medic@standing@kneel@base") do Wait(10) end
+        TaskPlayAnim(PlayerPedId(), "amb@medic@standing@kneel@base", "base", 8.0, -8, -1, 1, 0, false, false, false)
+        
         local closestPed, distance = GetClosestPed({maxDistance = 3.0, isPlayer = true})
         if closestPed then
             QBCore.Functions.Notify('Search player - implement your logic here!', 'inform')
@@ -1052,7 +1174,16 @@ RegisterNUICallback('performAction', function(data, cb)
     end
 
     if action == 'giveHouseKey' then
-        QBCore.Functions.Notify('Give house key - implement your logic here!', 'inform')
+        local closestPed, distance = GetClosestPed({maxDistance = 3.0, isPlayer = true})
+        if closestPed then
+            local serverId = GetServerIdFromPed(closestPed)
+            if serverId then
+                TriggerServerEvent('qb-houses:server:giveHouseKey', serverId)
+                QBCore.Functions.Notify('House key given!', 'success')
+            end
+        else
+            QBCore.Functions.Notify('No player nearby!', 'error')
+        end
         cb('ok')
         return
     end
@@ -1123,6 +1254,11 @@ end)
 
 RegisterNUICallback('requestStates', function(data, cb)
     UpdateAndSendAllStates()
+    cb('ok')
+end)
+
+RegisterNUICallback('requestClothingUpdate', function(data, cb)
+    updateAndSendClothingState()
     cb('ok')
 end)
 
@@ -1375,13 +1511,14 @@ end)
 -- 7. CREATE a continuous update thread for real-time syncing
 CreateThread(function()
     while true do
-        Wait(1000) -- Check every second
+        local sleep = 1000
         if isMenuOpen then
-            -- Continuously update states while menu is open
             updateAndSendClothingState()
             UpdateAndSendAllStates()
+            sleep = 500 -- Faster updates when menu open
         else
-            Wait(4000) -- Sleep longer when menu is closed
+            sleep = 5000 -- Slower when closed
         end
+        Wait(sleep)
     end
 end)

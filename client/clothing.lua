@@ -997,6 +997,38 @@ function IsMpPed(ped)
 	if CurrentModel == male then return 'male' elseif CurrentModel == female then return 'female' else return false end
 end
 
+-- Export the toggle clothing function for radial menu
+RegisterNetEvent('FxRadialMenu:ToggleClothing', function(data)
+    local itemId = data and data.id
+    if itemId then
+        -- Map the item names to the clothing system names
+        local clothingMap = {
+            mask = 'Mask',
+            hat = 'Hat',
+            glasses = 'Glasses',
+            jacket = 'Top',
+            shirt = 'Shirt',
+            pants = 'Pants',
+            shoes = 'Shoes',
+            bag = 'Bag',
+            vest = 'Vest',
+            gloves = 'gloves',
+            ears = 'Ear',
+            neck = 'Neck',
+            watch = 'Watch',
+            bracelet = 'Bracelet'
+        }
+        
+        local mappedItem = clothingMap[itemId]
+        if mappedItem then
+            ToggleClothing(mappedItem)
+        else
+            -- Try props
+            ToggleProps(itemId)
+        end
+    end
+end)
+
 RegisterNetEvent('dpc:EquipLast', function()
 	local Ped = PlayerPedId()
 	for _, v in pairs(LastEquipped) do
