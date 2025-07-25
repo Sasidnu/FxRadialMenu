@@ -1,0 +1,366 @@
+/* Reset and base */
+* {
+  box-sizing: border-box;
+}
+body, html {
+  margin: 0; padding: 0;
+  height: 100%;
+  font-family: 'Inter', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  overflow-x: hidden;
+}
+
+.center-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.menu-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding-top: 20px;
+  width: 100%;
+  max-width: 480px;
+  perspective: 1200px;
+}
+
+#dynamicMenuContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding-top: 0;
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+  transform-style: preserve-3d;
+}
+
+.hexagon-row {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: -20px;
+  opacity: 1;
+  transform-origin: top center;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.menu-container .hexagon-row:first-child {
+  margin-top: 0;
+}
+
+.fade-slide-in {
+  opacity: 0;
+  transform: translateY(30px) rotateX(15deg);
+  animation: fadeSlideIn 0.5s forwards cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: forwards;
+  backface-visibility: hidden;
+}
+
+@keyframes fadeSlideIn {
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg);
+  }
+}
+
+.hexagon {
+  width: 110px;
+  height: 110px;
+  background: linear-gradient(145deg, #2c3e50, #1a2b3c);
+  clip-path: polygon(
+    50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%
+  );
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 15px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    inset 0 0 8px rgba(255,255,255,0.05),
+    0 6px 12px rgba(0,0,0,0.5);
+  margin-right: 0;
+  transition:
+    background 0.3s cubic-bezier(.4,2,.6,1),
+    transform 0.25s cubic-bezier(.4,2,.6,1),
+    box-shadow 0.25s cubic-bezier(.4,2,.6,1);
+  position: relative;
+  overflow: visible;
+  cursor: pointer;
+  z-index: 1;
+  filter: blur(0.4px);
+  border-radius: 12px;
+  user-select: none;
+  transform-style: preserve-3d;
+  will-change: transform, box-shadow;
+}
+
+.hexagon-row .hexagon:first-child {
+  margin-left: 0;
+}
+
+.hexagon::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  z-index: -1;
+  border-radius: 20px;
+  opacity: 0;
+  pointer-events: none;
+  background: conic-gradient(from 0deg, #00ffb3, #009E60, #00ffb3 100%);
+  filter: blur(10px);
+  transition: opacity 0.3s, transform 0.3s;
+  transform: scale(0.8);
+  will-change: opacity, transform;
+}
+
+.hexagon:hover {
+  transform: scale(1.1) rotate(-2deg) translateZ(20px);
+  box-shadow:
+    0 0 32px 0 #00ffb3,
+    0 4px 16px rgba(0,0,0,0.3),
+    inset 0 0 12px rgba(255,255,255,0.1);
+  z-index: 5;
+}
+
+.hexagon:hover::before {
+  opacity: 0.85;
+  transform: scale(1.15);
+  animation: hex-pulse 0.8s cubic-bezier(.4,2,.6,1);
+}
+
+@keyframes hex-pulse {
+  0% { opacity: 0.2; transform: scale(0.8);}
+  60% { opacity: 1; transform: scale(1.25);}
+  100% { opacity: 0.85; transform: scale(1.15);}
+}
+
+.hexagon .icon {
+  font-size: 30px;
+  margin-bottom: 6px;
+  transition: filter 0.3s cubic-bezier(.4,2,.6,1), transform 0.25s cubic-bezier(.4,2,.6,1);
+  color: #b0bec5;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.3));
+  will-change: filter, transform;
+}
+
+.hexagon:hover .icon {
+  filter: drop-shadow(0 0 8px #00ffb3) brightness(1.3);
+  transform: scale(1.15) rotate(3deg);
+  color: #e0f7fa;
+}
+
+.hexagon-label {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #cfd8dc;
+  text-shadow: 0 0 3px rgba(0,0,0,0.4);
+  user-select: none;
+  white-space: normal;
+  word-break: break-word;
+  padding: 0 5px;
+}
+
+.hexagon.purple { background: #6c63ff; }
+.hexagon.blue { background: #2196f3; }
+.hexagon.red { background: #e53935; }
+
+.hexagon.selected {
+  background: #009E60;
+  box-shadow:
+    0 0 24px 0 #00ffb3,
+    0 0 12px 4px #00ffb3 inset;
+  z-index: 10;
+}
+.hexagon.selected .icon {
+  color: #ffffff;
+  filter: brightness(1.8) drop-shadow(0 0 6px #00ffb3);
+}
+.hexagon.selected .hexagon-label {
+  color: #e0f7fa;
+  text-shadow: 0 0 6px #00ffb3;
+}
+
+.controls-row {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  user-select: none;
+}
+
+.hexagon-row.controls-row {
+  margin-top: 0;
+}
+
+.hexagon.has-next-indicator::after,
+.hexagon.has-prev-indicator::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 30px;
+  background-color: #00ffb3;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.hexagon.has-next-indicator::after {
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: left center;
+}
+
+.hexagon.has-prev-indicator::after {
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: right center;
+}
+
+.hexagon.has-next-indicator::after,
+.hexagon.has-prev-indicator::after {
+    opacity: 1;
+    transform: translateY(-50%) scaleX(1);
+}
+
+@media (max-width: 520px) {
+  .hexagon {
+    width: 90px;
+    height: 90px;
+    font-size: 13px;
+  }
+  .hexagon .icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+  }
+  .hexagon-label {
+    font-size: 9px;
+    padding: 0 3px;
+  }
+  .menu-container {
+    max-width: 100%;
+    padding: 10px;
+  }
+}
+
+#notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: #4CAF50;
+  color: white;
+  padding: 15px 22px;
+  border-radius: 8px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 44px 12px rgba(0,0,0,0.3);
+  transition: opacity 0.5s ease, transform 0.3s ease;
+  transform: translateY(20px);
+  user-select: none;
+}
+#notification.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+} 
+
+.icon-engine {
+    background-color: #b0bec5;
+    -webkit-mask-image: url("data:image/svg+xml;charset=UTF-8,%3csvg fill='%23000000' viewBox='0 -14.14 122.88 122.88' version='1.1' xmlns='http://www.w3.org/2000/svg'%3e%3cg%3e%3cpath d='M43.58,92.2L31.9,80.53h-8.04c-2.81,0-5.11-2.3-5.11-5.11v-8.7h-4.87V76.9c0,2.17-1.78,3.95-3.95,3.95H3.95 C1.78,80.85,0,79.07,0,76.9V42.4c0-2.17,1.78-3.95,3.95-3.95h5.98c2.17,0,3.95,1.78,3.95,3.95v10.18h4.87v-9.36 c0-2.81,2.3-5.11,5.11-5.11h8.54l12.07-12.83c1.4-1.22,3.26-1.65,5.43-1.56h49.73c1.72,0.19,3.03,0.85,3.83,2.09 c0.8,1.22,0.67,1.91,0.67,3.28v23.49H109V42.4c0-2.17,1.78-3.95,3.95-3.95h5.98c2.17,0,3.95,1.78,3.95,3.95v34.5 c0,2.17-1.78,3.95-3.95,3.95h-5.98c-2.17,0-3.95-1.78-3.95-3.95V66.72h-4.87v0.92c0,2.73,0.08,4.38-1.66,6.64 c-0.33,0.43-0.7,0.84-1.11,1.22L83.53,92.96c-0.89,0.99-2.24,1.53-4.02,1.63h-30.4C46.84,94.49,44.99,93.71,43.58,92.2L43.58,92.2z M63.71,61.78l-12.64-1.19l10.48-22.96h14.33l-8.13,13.17l14.62,1.62L55.53,84.64L63.71,61.78L63.71,61.78z M51.98,0h34.5 c2.17,0,3.95,1.78,3.95,3.95v5.98c0,2.17-1.78,3.95-3.95,3.95H76.3v5.03H62.16v-5.03H51.98c-2.17,0-3.95-1.78-3.95-3.95V3.95 C48.03,1.78,49.81,0,51.98,0L51.98,0z'/%3e%3c/g%3e%3c/svg%3e");
+    mask-image: url("data:image/svg+xml;charset=UTF-8,%3csvg fill='%23000000' viewBox='0 -14.14 122.88 122.88' version='1.1' xmlns='http://www.w3.org/2000/svg'%3e%3cg%3e%3cpath d='M43.58,92.2L31.9,80.53h-8.04c-2.81,0-5.11-2.3-5.11-5.11v-8.7h-4.87V76.9c0,2.17-1.78,3.95-3.95,3.95H3.95 C1.78,80.85,0,79.07,0,76.9V42.4c0-2.17,1.78-3.95,3.95-3.95h5.98c2.17,0,3.95,1.78,3.95,3.95v10.18h4.87v-9.36 c0-2.81,2.3-5.11,5.11-5.11h8.54l12.07-12.83c1.4-1.22,3.26-1.65,5.43-1.56h49.73c1.72,0.19,3.03,0.85,3.83,2.09 c0.8,1.22,0.67,1.91,0.67,3.28v23.49H109V42.4c0-2.17,1.78-3.95,3.95-3.95h5.98c2.17,0,3.95,1.78,3.95,3.95v34.5 c0,2.17-1.78,3.95-3.95,3.95h-5.98c-2.17,0-3.95-1.78-3.95-3.95V66.72h-4.87v0.92c0,2.73,0.08,4.38-1.66,6.64 c-0.33,0.43-0.7,0.84-1.11,1.22L83.53,92.96c-0.89,0.99-2.24,1.53-4.02,1.63h-30.4C46.84,94.49,44.99,93.71,43.58,92.2L43.58,92.2z M63.71,61.78l-12.64-1.19l10.48-22.96h14.33l-8.13,13.17l14.62,1.62L55.53,84.64L63.71,61.78L63.71,61.78z M51.98,0h34.5 c2.17,0,3.95,1.78,3.95,3.95v5.98c0,2.17-1.78,3.95-3.95,3.95H76.3v5.03H62.16v-5.03H51.98c-2.17,0-3.95-1.78-3.95-3.95V3.95 C48.03,1.78,49.81,0,51.98,0L51.98,0z'/%3e%3c/g%3e%3c/svg%3e");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    width: 40px;
+    height: 40px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.hexagon:hover .icon-engine,
+.hexagon.selected .icon-engine {
+    background-color: #e0f7fa;
+} 
+
+.icon-vehicle-door {
+    background-color: #b0bec5;
+    -webkit-mask-image: url("data:image/svg+xml;utf8,<svg fill='black' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='M19,2H12.41A2,2,0,0,0,11,2.59l-7.71,7.7A1,1,0,0,0,3,11v4.13a2,2,0,0,0,1.72,2l2.06.3A5.11,5.11,0,0,1,11,21.24,1,1,0,0,0,12,22h7a2,2,0,0,0,2-2V4A2,2,0,0,0,19,2Zm0,8H6.41l6-6H19Z'/><path d='M18,14H15a1,1,0,0,1,0-2h3a1,1,0,0,1,0,2Z'/></svg>");
+    mask-image: url("data:image/svg+xml;utf8,<svg fill='black' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='M19,2H12.41A2,2,0,0,0,11,2.59l-7.71,7.7A1,1,0,0,0,3,11v4.13a2,2,0,0,0,1.72,2l2.06.3A5.11,5.11,0,0,1,11,21.24,1,1,0,0,0,12,22h7a2,2,0,0,0,2-2V4A2,2,0,0,0,19,2Zm0,8H6.41l6-6H19Z'/><path d='M18,14H15a1,1,0,0,1,0-2h3a1,1,0,0,1,0,2Z'/></svg>");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    width: 40px;
+    height: 40px;
+    display: inline-block;
+    vertical-align: middle;
+}
+.hexagon:hover .icon-vehicle-door,
+.hexagon.selected .icon-vehicle-door {
+    background-color: #e0f7fa;
+} 
+
+/* FINAL "CRYSTAL CLEAR" STYLE FOR HIGHLIGHTED BUTTONS */
+.hexagon.active-gold {
+  background: linear-gradient(145deg, #FFD700, #DAA520);
+  box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.5), 0 2px 5px rgba(0, 0, 0, 0.3);
+  border-color: #FFFACD;
+}
+
+.hexagon.active-gold .icon,
+.hexagon.active-gold .hexagon-label {
+  color: #ffffff;
+  font-weight: bold;
+  text-shadow: none; /* CRITICAL FIX: Removes the shadow for a super clean look */
+}
+
+/* This rule prevents a gold button from turning green when it's also selected */
+.hexagon.active-gold.selected {
+  background: linear-gradient(145deg, #FFD700, #DAA520);
+  box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.6), 0 3px 7px rgba(0, 0, 0, 0.4);
+} 
+
+/* ADD THESE STYLES BACK FOR SUBMENU SELECTION */
+.hexagon.selected {
+  background: #009E60;
+  box-shadow:
+    0 0 24px 0 #00ffb3,
+    0 0 12px 4px #00ffb3 inset;
+  z-index: 10;
+}
+
+.hexagon.selected .icon {
+  color: #ffffff;
+  filter: brightness(1.8) drop-shadow(0 0 6px #00ffb3);
+}
+
+.hexagon.selected .hexagon-label {
+  color: #e0f7fa;
+  text-shadow: 0 0 6px #00ffb3;
+} 

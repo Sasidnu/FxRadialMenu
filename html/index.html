@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FxRadialMenu</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css?family=Inter:400,500,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body class="center-screen">
+  <div id="menuWrapper">
+    <div class="menu-container" role="menu" aria-label="Hexagonal navigation menu">
+      <div id="dynamicMenuContainer" aria-live="polite" aria-atomic="true"></div>
+      <div class="hexagon-row" id="mainCategoriesRow" role="menubar" aria-label="Main categories">
+        <div class="hexagon" data-category="CITIZEN" role="menuitem" tabindex="0" aria-haspopup="true" aria-expanded="false">
+          <i class="fas fa-user icon" aria-hidden="true"></i>
+          <div class="hexagon-label">CITIZEN</div>
+        </div>
+        <div class="hexagon" data-category="GENERAL" role="menuitem" tabindex="0" aria-haspopup="true" aria-expanded="false">
+          <i class="fas fa-list-alt icon" aria-hidden="true"></i>
+          <div class="hexagon-label">GENERAL</div>
+        </div>
+        <div class="hexagon" data-category="WORK" role="menuitem" tabindex="0" aria-haspopup="true" aria-expanded="false">
+          <i class="fas fa-briefcase icon" aria-hidden="true"></i>
+          <div class="hexagon-label">WORK</div>
+        </div>
+      </div>
+      <div class="hexagon-row controls-row" role="toolbar" aria-label="Menu controls">
+        <div class="hexagon purple" id="prevPageBtn" role="button" tabindex="0" aria-label="Previous page">
+          <i class="fas fa-angle-double-left icon" aria-hidden="true"></i>
+          <div class="hexagon-label">Previous</div>
+        </div>
+        <div class="hexagon blue" id="nextPageBtn" role="button" tabindex="0" aria-label="Next page">
+          <i class="fas fa-angle-double-right icon" aria-hidden="true"></i>
+          <div class="hexagon-label">Next</div>
+        </div>
+      </div>
+      <div class="hexagon-row controls-row" role="toolbar" aria-label="Exit menu">
+        <div class="hexagon red" id="exitBtn" role="button" tabindex="0" aria-label="Exit menu">
+          <i class="fas fa-times icon" aria-hidden="true"></i>
+          <div class="hexagon-label">Exit</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="notification" role="alert" aria-live="assertive" aria-atomic="true"></div>
+  <script src="script.js"></script>
+</body>
+</html>
