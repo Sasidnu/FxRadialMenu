@@ -4,11 +4,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function showMenu() {
     document.getElementById('menuWrapper').style.display = 'block';
     setTimeout(() => { document.getElementById('menuWrapper').style.opacity = '1'; }, 10);
+    startAutoRefresh();
   }
+  
   function hideMenu() {
     document.getElementById('menuWrapper').style.opacity = '0';
     setTimeout(() => { document.getElementById('menuWrapper').style.display = 'none'; }, 500);
+    stopAutoRefresh();
   }
+  
   function nuiClose() {
     hideMenu();
     $.post(`https://${GetParentResourceName()}/close`, JSON.stringify({}));
@@ -29,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentClothingState = data.clothingState;
         }
         menuPath = [];
+        window.menuPath = menuPath;
         pageIndexes = {};
         renderMenu(); // This draws the menu for the first time
         showMenu();
@@ -42,6 +47,16 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (data.action === 'updateStates') {
         console.log('--- JS DEBUG: Received updateStates message ---');
         updateVehicleStates(data.states);
+    } else if (data.action === 'immediateUpdate') {
+        // NEW: Handle immediate updates for real-time highlighting
+        console.log('--- JS DEBUG: Received immediate update ---');
+        if (data.clothingState) {
+            currentClothingState = data.clothingState;
+            updateClothingHighlights(currentClothingState);
+        }
+        if (data.vehicleStates) {
+            updateVehicleStates(data.vehicleStates);
+        }
     }
 });
   // --- End NUI Logic ---
@@ -179,6 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   let menuPath = [];
+  window.menuPath = menuPath; // Make menuPath globally accessible
   let currentClothingState = {};
   let pageIndexes = {};
   const dynamicMenuContainer = document.getElementById('dynamicMenuContainer');
@@ -187,25 +203,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const prevPageBtn = document.getElementById('prevPageBtn');
   const nextPageBtn = document.getElementById('nextPageBtn');
 
+  // Auto-refresh system
+  let autoRefreshInterval = null;
+
+  function startAutoRefresh() {
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(() => {
+        if (document.getElementById('menuWrapper').style.display !== 'none') {
+            // Auto-request updates every 2 seconds while menu is open
+            $.post(`https://${GetParentResourceName()}/requestStates`, JSON.stringify({}));
+            $.post(`https://${GetParentResourceName()}/requestClothingUpdate`, JSON.stringify({}));
+        }
+    }, 2000);
+  }
+
+  function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+  }
+
   // --- MENU BUTTONS PER ROW RULE ---
-  // The number of buttons shown per row (page) depends on the submenu and its context:
-  //
-  // 1. INTERACTION LOCATIONS submenu: 6 buttons per row (raw 6)
-  //    - Example: If INTERACTION LOCATIONS has 8 buttons, 6 show at once, next/prev for the rest.
-  // 2. GENERAL > CLOTHING submenu: 5 buttons per row (raw 5)
-  //    - Example: If CLOTHING has 8 buttons, 5 show at once, next/prev for the rest.
-  // 3. All other submenus: default (usually 5 per row, unless overridden by level)
-  //    - Example: If a submenu has 7 buttons, 5 show at once, next/prev for the rest.
-  //
-  // This rule is controlled by getItemsPerPage(). Adjust logic here to change per-row button counts.
-  //
-  // If a submenu has fewer buttons than the row size, empty buttons are shown to fill the row for visual consistency.
   function getItemsPerPage(level, currentPage = 0, parentKey = null) {
-    // V V V V --- THIS IS THE NEW CODE BLOCK TO ADD --- V V V V
     if (parentKey === 'NPC Guard') {
         return 6;
     }
-    // ^ ^ ^ ^ --- END OF THE NEW CODE BLOCK --- ^ ^ ^ ^
     // INTERACTION LOCATIONS submenu එකට 6ක්
     if (parentKey === 'INTERACTION LOCATIONS') {
         return 6;
@@ -239,12 +262,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update the path and re-render the menu to show the selection.
         menuPath = menuPath.slice(0, level);
         menuPath.push(itemName);
+        window.menuPath = menuPath; // Update global reference
         const pageKey = menuPath.join('/');
         pageIndexes[pageKey] = 0;
         renderMenu();
     } else {
         // If it has no children, it's an "action button".
-        // Just perform the action and DO NOT change the menu's appearance.
+        // Perform the action and immediately update highlighting
         if (item.event) {
             let eventData = {
                 action: item.event,
@@ -257,12 +281,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.locationType) {
                 eventData.locationType = item.locationType;
             }
-            $.post(`https://${GetParentResourceName()}/performAction`, JSON.stringify(eventData));
+            
+            // Send action to Lua
+            $.post(`https://${GetParentResourceName()}/performAction`, JSON.stringify(eventData))
+                .done(() => {
+                    // CRITICAL: Request immediate state update after action
+                    setTimeout(() => {
+                        if (item.event.includes('vehicle')) {
+                            $.post(`https://${GetParentResourceName()}/requestStates`, JSON.stringify({}));
+                        }
+                        if (item.event.includes('Clothing')) {
+                            $.post(`https://${GetParentResourceName()}/requestClothingUpdate`, JSON.stringify({}));
+                        }
+                    }, 100);
+                });
         }
-        // You can uncomment the line below if you want the menu to close after an action
-        // nuiClose();
     }
-}
+  }
 
   function renderMenu() {
     dynamicMenuContainer.innerHTML = '';
@@ -273,10 +308,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     prevPageBtn.classList.remove('has-prev-indicator');
     nextPageBtn.classList.remove('has-next-indicator');
+    
     if (menuPath.length === 0) {
       dynamicMenuContainer.style.display = 'none';
       return;
     }
+    
     dynamicMenuContainer.style.display = 'flex';
     const mainCategoryName = menuPath[0];
     const mainCategoryHexagon = mainCategoriesRow.querySelector(`[data-category="${mainCategoryName}"]`);
@@ -284,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mainCategoryHexagon.classList.add('selected');
       mainCategoryHexagon.setAttribute('aria-expanded', 'true');
     }
+    
     let currentLevelData = menuData;
     menuPath.forEach((pathItem, level) => {
       const children = currentLevelData[pathItem]?.children;
@@ -291,7 +329,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const pageKey = menuPath.slice(0, level + 1).join('/');
       const currentPage = pageIndexes[pageKey] || 0;
       let startIndex = 0;
-      for (let i = 0; i < currentPage; i++) { startIndex += getItemsPerPage(level, i, pathItem); }
+      for (let i = 0; i < currentPage; i++) { 
+        startIndex += getItemsPerPage(level, i, pathItem); 
+      }
       const itemsToDisplayOnThisPage = getItemsPerPage(level, currentPage, pathItem);
       const animateThisRow = (level === menuPath.length - 1);
       renderRow(children, level, startIndex, itemsToDisplayOnThisPage, animateThisRow, menuPath[level + 1]);
@@ -302,20 +342,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentLevelIndex = menuPath.length - 1;
         const pageKey = menuPath.join('/');
         let currentLevelDataForPagination = menuData;
-        menuPath.forEach(p => { currentLevelDataForPagination = currentLevelDataForPagination[p]?.children || {}; });
+        menuPath.forEach(p => { 
+            currentLevelDataForPagination = currentLevelDataForPagination[p]?.children || {}; 
+        });
         const totalItems = Object.keys(currentLevelDataForPagination).length;
         const currentPage = pageIndexes[pageKey] || 0;
         let itemsSeen = 0;
         const parentKeyForPagination = menuPath[currentLevelIndex];
-        for (let i = 0; i <= currentPage; i++) { itemsSeen += getItemsPerPage(currentLevelIndex, i, parentKeyForPagination); }
-        if (itemsSeen < totalItems) { nextPageBtn.classList.add('has-next-indicator'); }
-        if (currentPage > 0 || menuPath.length > 1) { prevPageBtn.classList.add('has-prev-indicator'); }
+        for (let i = 0; i <= currentPage; i++) { 
+            itemsSeen += getItemsPerPage(currentLevelIndex, i, parentKeyForPagination); 
+        }
+        if (itemsSeen < totalItems) { 
+            nextPageBtn.classList.add('has-next-indicator'); 
+        }
+        if (currentPage > 0 || menuPath.length > 1) { 
+            prevPageBtn.classList.add('has-prev-indicator'); 
+        }
     }
     
-    // Request vehicle states from Lua after menu is rendered
-    $.post(`https://${GetParentResourceName()}/requestStates`, JSON.stringify({}));
-    updateClothingHighlights(currentClothingState);
-}
+    // IMPROVED: Multiple requests for comprehensive state updates
+    setTimeout(() => {
+        // Always request both states after menu render
+        $.post(`https://${GetParentResourceName()}/requestStates`, JSON.stringify({}));
+        $.post(`https://${GetParentResourceName()}/requestClothingUpdate`, JSON.stringify({}));
+    }, 100);
+  }
 
   function renderRow(items, level, startIndex, itemsToDisplay, animate, selectedKey) {
     const row = document.createElement('div');
@@ -330,14 +381,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const hex = document.createElement('div');
         hex.className = 'hexagon';
         
-        // --- THIS IS THE CRITICAL MISSING LINE THAT FIXES EVERYTHING ---
+        // CRITICAL FIX: Set data-action for vehicle buttons
+        if (item.event) {
+            hex.dataset.action = item.event;
+            console.log(`Setting data-action="${item.event}" for button "${key}"`);
+        }
+        
+        // Clothing items fix
         if (item['data-item']) {
             hex.dataset.item = item['data-item'];
-        }
-        // --- END OF FIX ---
-        // Vehicle action items (NEW LINE)
-        if (item['data-action']) {
-            hex.dataset.action = item['data-action'];
         }
 
         if (animate) { hex.style.animationDelay = `${index * 0.07}s`; }
@@ -345,6 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hex.classList.add('selected');
         }
         
+        // FIXED REGEX: Remove the ? after ^
         const label = key.replace(/^\d+\.\s*/, '');
         
         hex.innerHTML = `<i class="${item.icon || ''} icon" aria-hidden="true"></i><div class="hexagon-label">${label || ''}</div>`;
@@ -360,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
         row.appendChild(emptyHex);
     }
     dynamicMenuContainer.prepend(row);
-}
+  }
 
   function showNotification(message) {
     notification.textContent = message;
@@ -385,6 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
           pageIndexes[pageKey] = currentPage - 1;
       } else {
           menuPath.pop();
+          window.menuPath = menuPath;
       }
       renderMenu();
     }
@@ -413,135 +467,169 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Add this new function below the event listener
+  // IMPROVED updateClothingHighlights function
   function updateClothingHighlights(state) {
     console.log('--- JS DEBUG: updateClothingHighlights function STARTED ---');
     if (!state) {
-      console.log('--- JS DEBUG: State is empty, stopping. ---');
-      return;
+        console.log('--- JS DEBUG: State is empty, stopping. ---');
+        return;
     }
 
-    const clothingButtons = document.querySelectorAll('.hexagon[data-item]');
-
-    clothingButtons.forEach(button => {
-      const itemKey = button.dataset.item;
-      // DEBUG: Check each item key
-      console.log(`--- JS DEBUG: Checking button with data-item: "${itemKey}" ---`);
-
-      if (state[itemKey]) {
-        const selector = `.hexagon[data-item="${itemKey}"]`;
-        const foundButton = document.querySelector(selector);
-        // DEBUG: Check if the button was found in the document
-        console.log(`--- JS DEBUG: Searching for [${selector}]. Found element:`, foundButton);
-
-        if (state[itemKey].on) {
-          // DEBUG: Log before adding class
-          console.log(`--- JS DEBUG: State for "${itemKey}" is ON. Adding .active-gold class.`);
-          button.classList.add('active-gold');
-        } else {
-          // DEBUG: Log before removing class
-          console.log(`--- JS DEBUG: State for "${itemKey}" is OFF. Removing .active-gold class.`);
-          button.classList.remove('active-gold');
-        }
-      }
+    // IMMEDIATE update without setTimeout for better responsiveness
+    requestAnimationFrame(() => {
+        const allHexagons = document.querySelectorAll('.hexagon');
+        console.log(`Found ${allHexagons.length} total buttons for clothing check`);
+        
+        // CRITICAL: Only clear clothing-related states, preserve vehicle states
+        allHexagons.forEach(hex => {
+            const item = hex.dataset.item;
+            if (item) {
+                hex.classList.remove('active-gold');
+            }
+        });
+        
+        allHexagons.forEach(hex => {
+            const label = hex.querySelector('.hexagon-label');
+            if (label) {
+                const labelText = label.textContent.trim().toLowerCase();
+                
+                // Enhanced clothing mappings
+                const clothingMappings = {
+                    'mask': 'mask',
+                    'hat': 'hat', 
+                    'glasses': 'glasses',
+                    'jacket': 'jacket',
+                    'shirt': 'shirt',
+                    'pants': 'pants',
+                    'shoes': 'shoes',
+                    'bag': 'bag',
+                    'vest': 'vest',
+                    'gloves': 'gloves',
+                    'ears': 'ears',
+                    'necklace': 'neck',
+                    'watches': 'watch',
+                    'bracelet': 'bracelet'
+                };
+                
+                const clothingItem = clothingMappings[labelText];
+                if (clothingItem && state[clothingItem]) {
+                    hex.dataset.item = clothingItem;
+                    if (state[clothingItem].on) {
+                        console.log(`Adding gold to ${clothingItem} button (${labelText})`);
+                        hex.classList.add('active-gold');
+                    } else {
+                        console.log(`Removing gold from ${clothingItem} button (${labelText})`);
+                        hex.classList.remove('active-gold');
+                    }
+                }
+            }
+        });
+        
+        console.log('--- JS DEBUG: updateClothingHighlights function FINISHED ---');
     });
-    console.log('--- JS DEBUG: updateClothingHighlights function FINISHED ---');
   }
 });
 
-// Add this function at the end of the file
+// IMPROVED updateVehicleStates function
 function updateVehicleStates(states) {
     console.log('--- JS DEBUG: Updating vehicle states ---');
     console.log('States object:', JSON.stringify(states, null, 2));
     
-    // Engine state highlighting
-    const engineOnBtn = document.querySelector('.hexagon[data-action="vehicleEngineOn"]');
-    const engineOffBtn = document.querySelector('.hexagon[data-action="vehicleEngineOff"]');
-    
-    console.log('Engine On Button:', engineOnBtn);
-    console.log('Engine Off Button:', engineOffBtn);
-    console.log('Engine states - On:', states.vehicleEngineOn, 'Off:', states.vehicleEngineOff);
-    
-    if (engineOnBtn) {
-        if (states.vehicleEngineOn) {
-            console.log('Adding gold to Engine On button');
-            engineOnBtn.classList.add('active-gold');
-        } else {
-            console.log('Removing gold from Engine On button');
-            engineOnBtn.classList.remove('active-gold');
-        }
-    } else {
-        console.log('Engine On button not found!');
-    }
-    
-    if (engineOffBtn) {
-        if (states.vehicleEngineOff) {
-            console.log('Adding gold to Engine Off button');
-            engineOffBtn.classList.add('active-gold');
-        } else {
-            console.log('Removing gold from Engine Off button');
-            engineOffBtn.classList.remove('active-gold');
-        }
-    } else {
-        console.log('Engine Off button not found!');
-    }
-    
-    // Light state highlighting
-    const lightOnBtn = document.querySelector('.hexagon[data-action="vehicleLightOn"]');
-    const lightOffBtn = document.querySelector('.hexagon[data-action="vehicleLightOff"]');
-    
-    if (lightOnBtn) {
-        if (states.vehicleLightOn) {
-            lightOnBtn.classList.add('active-gold');
-        } else {
-            lightOnBtn.classList.remove('active-gold');
-        }
-    }
-    
-    if (lightOffBtn) {
-        if (states.vehicleLightOff) {
-            lightOffBtn.classList.add('active-gold');
-        } else {
-            lightOffBtn.classList.remove('active-gold');
-        }
-    }
-    
-    // Door state highlighting
-    const doorActions = ['vehicleDoorFrontLeft', 'vehicleDoorFrontRight', 'vehicleDoorRearLeft', 'vehicleDoorRearRight', 'vehicleDoorHood', 'vehicleDoorTrunk'];
-    doorActions.forEach(action => {
-        const btn = document.querySelector(`.hexagon[data-action="${action}"]`);
-        if (btn) {
-            if (states[action]) {
-                btn.classList.add('active-gold');
-            } else {
-                btn.classList.remove('active-gold');
+    // IMMEDIATE update without setTimeout for better responsiveness
+    requestAnimationFrame(() => {
+        // Find all hexagon buttons
+        const allHexagons = document.querySelectorAll('.hexagon');
+        console.log(`Found ${allHexagons.length} hexagon buttons`);
+        
+        // CRITICAL: Only clear vehicle-related states, preserve clothing states
+        allHexagons.forEach(hex => {
+            const action = hex.dataset.action;
+            if (action && action.includes('vehicle')) {
+                hex.classList.remove('active-gold');
             }
-        }
-    });
-    
-    // Window state highlighting
-    const windowActions = ['vehicleWindowFrontLeft', 'vehicleWindowFrontRight', 'vehicleWindowRearLeft', 'vehicleWindowRearRight'];
-    windowActions.forEach(action => {
-        const btn = document.querySelector(`.hexagon[data-action="${action}"]`);
-        if (btn) {
-            if (states[action]) {
-                btn.classList.add('active-gold');
-            } else {
-                btn.classList.remove('active-gold');
+        });
+        
+        // Apply vehicle states based on text content matching
+        allHexagons.forEach(hex => {
+            const label = hex.querySelector('.hexagon-label');
+            if (label) {
+                const labelText = label.textContent.trim();
+                
+                // Engine states
+                if (labelText === 'Engine On' && states.vehicleEngineOn) {
+                    console.log('Adding gold to Engine On button');
+                    hex.classList.add('active-gold');
+                    hex.dataset.action = 'vehicleEngineOn';
+                }
+                if (labelText === 'Engine Off' && states.vehicleEngineOff) {
+                    console.log('Adding gold to Engine Off button');
+                    hex.classList.add('active-gold');
+                    hex.dataset.action = 'vehicleEngineOff';
+                }
+                
+                // Light states
+                if (labelText === 'Light On' && states.vehicleLightOn) {
+                    console.log('Adding gold to Light On button');
+                    hex.classList.add('active-gold');
+                    hex.dataset.action = 'vehicleLightOn';
+                }
+                if (labelText === 'Light Off' && states.vehicleLightOff) {
+                    console.log('Adding gold to Light Off button');
+                    hex.classList.add('active-gold');
+                    hex.dataset.action = 'vehicleLightOff';
+                }
+                
+                // Door states
+                const doorMappings = {
+                    'Front Left': 'vehicleDoorFrontLeft',
+                    'Front Right': 'vehicleDoorFrontRight', 
+                    'Rear Left': 'vehicleDoorRearLeft',
+                    'Rear Right': 'vehicleDoorRearRight',
+                    'Hood': 'vehicleDoorHood',
+                    'Trunk': 'vehicleDoorTrunk'
+                };
+                
+                // Check if we're in a door menu
+                const isInDoorMenu = window.menuPath && window.menuPath.includes('Door');
+                if (isInDoorMenu && doorMappings[labelText] && states[doorMappings[labelText]]) {
+                    console.log(`Adding gold to ${labelText} door button`);
+                    hex.classList.add('active-gold');
+                    hex.dataset.action = doorMappings[labelText];
+                }
+                
+                // Window states
+                const windowMappings = {
+                    'Front Left': 'vehicleWindowFrontLeft',
+                    'Front Right': 'vehicleWindowFrontRight',
+                    'Rear Left': 'vehicleWindowRearLeft', 
+                    'Rear Right': 'vehicleWindowRearRight'
+                };
+                
+                // Only for window menus
+                const isInWindowMenu = window.menuPath && window.menuPath.includes('Window Control');
+                if (isInWindowMenu && windowMappings[labelText] && states[windowMappings[labelText]]) {
+                    console.log(`Adding gold to ${labelText} window button`);
+                    hex.classList.add('active-gold');
+                    hex.dataset.action = windowMappings[labelText];
+                }
+                
+                // Seat states  
+                const seatMappings = {
+                    'Driver': 'vehicleSeatDriver',
+                    'Front Passenger': 'vehicleSeatPassenger',
+                    'Rear Left': 'vehicleSeatRearLeft',
+                    'Rear Right': 'vehicleSeatRearRight'
+                };
+                
+                const isInSeatMenu = window.menuPath && window.menuPath.includes('Seat Shuffle');
+                if (isInSeatMenu && seatMappings[labelText] && states[seatMappings[labelText]]) {
+                    console.log(`Adding gold to ${labelText} seat button`);
+                    hex.classList.add('active-gold');
+                    hex.dataset.action = seatMappings[labelText];
+                }
             }
-        }
-    });
-    
-    // Seat state highlighting
-    const seatActions = ['vehicleSeatDriver', 'vehicleSeatPassenger', 'vehicleSeatRearLeft', 'vehicleSeatRearRight'];
-    seatActions.forEach(action => {
-        const btn = document.querySelector(`.hexagon[data-action="${action}"]`);
-        if (btn) {
-            if (states[action]) {
-                btn.classList.add('active-gold');
-            } else {
-                btn.classList.remove('active-gold');
-            }
-        }
+        });
+        
+        console.log('--- JS DEBUG: Vehicle state highlighting completed ---');
     });
 }
